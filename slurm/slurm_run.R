@@ -5,7 +5,9 @@ library(riskRegression, quietly = TRUE)
 library(conflicted, quietly = TRUE)
 library(tidyverse, quietly = TRUE)
 library(survival, quietly = TRUE)
+library(statmod, quietly = TRUE)
 library(splines, quietly = TRUE)
+library(glue, quietly = TRUE)
 library(rms, quietly = TRUE)
 
 conflict_prefer("filter",    "dplyr")
@@ -25,7 +27,7 @@ R.utils::sourceDirectory("R")
                          exposure_rate = 1,
                          n_trn = 1000,
                          n_tst = 10000,
-                         n_run = 100) {
+                         n_run = 10) {
   
   set.seed(seed)
   
@@ -51,34 +53,31 @@ R.utils::sourceDirectory("R")
     data_trn <- data_sim[trn_index, ]
     data_tst <- data_sim[-trn_index, ]
     
-    dd <- datadist(data_trn)
-    options(datadist = 'dd')
-    
-    fit_rcs <- cph(Surv(time, status) ~ rcs(exposure),
-                   data = data_trn, 
-                   x = TRUE, 
-                   y = TRUE)
+    fit_rcs <- coxph(Surv(time, status) ~ rcs(exposure),
+                     data = data_trn, 
+                     x = TRUE, 
+                     y = TRUE)
     
     # oracle model
     
     fit_oracle <- switch(
       as.character(exposure_type),
-      '1' = cph(Surv(time, status) ~ pol(exposure),
-                data = data_trn, 
-                x = TRUE, 
-                y = TRUE),
-      '2' = cph(Surv(time, status) ~ exposure,
-                data = data_trn, 
-                x = TRUE, 
-                y = TRUE),
-      '3' = cph(Surv(time, status) ~ lsp(exposure, 1),
-                data = data_trn, 
-                x = TRUE, 
-                y = TRUE),
-      '4' = cph(Surv(time, status) ~ lsp(exposure, c(1.1, 1.2, 1.30)),
-                data = data_trn, 
-                x = TRUE, 
-                y = TRUE)
+      '1' = coxph(Surv(time, status) ~ pol(exposure),
+                  data = data_trn, 
+                  x = TRUE, 
+                  y = TRUE),
+      '2' = coxph(Surv(time, status) ~ exposure,
+                  data = data_trn, 
+                  x = TRUE, 
+                  y = TRUE),
+      '3' = coxph(Surv(time, status) ~ lsp(exposure, 1),
+                  data = data_trn, 
+                  x = TRUE, 
+                  y = TRUE),
+      '4' = coxph(Surv(time, status) ~ lsp(exposure, c(1.1, 1.2, 1.30)),
+                  data = data_trn, 
+                  x = TRUE, 
+                  y = TRUE)
     )
     
     # plot(Predict(fit_rcs, exposure))
@@ -115,15 +114,21 @@ R.utils::sourceDirectory("R")
       group_by(model) %>%
       summarize(IPA = mean(IPA))
     
-    cal_plot <- plotCalibration(sc, 
-                                method = 'q', 
-                                times = median(predicted_risk_times),
+    cal_plot <- try(plotCalibration(sc, 
+                                times = max(predicted_risk_times),
                                 plot = FALSE, 
-                                cens.method = 'local')
+                                cens.method = 'local'))
     
-    cal_error <- cal_plot$plotFrames %>% 
-      map_dfr(summarize, cal_error = mean((Pred-Obs)^2, na.rm = TRUE),
-              .id = 'model')
+    if(inherits(cal_plot, 'try-error')){
+      cal_error <- tibble(
+        model = c('rcs', 'oracle'),
+        cal_error = c(NA_real_, NA_real_)
+      )
+    } else {
+      cal_error <- cal_plot$plotFrames %>% 
+        map_dfr(summarize, cal_error = mean((Pred-Obs)^2, na.rm = TRUE),
+                .id = 'model')
+    }
     
     results <- results %>% 
       add_row(
@@ -135,7 +140,13 @@ R.utils::sourceDirectory("R")
     
   }
   
-  results
+  results %>% 
+    mutate(
+      seed = seed,
+      exposure_distribution = exposure_distribution,
+      exposure_type = exposure_type,
+      exposure_rate = exposure_rate
+    )
   
 }
 
