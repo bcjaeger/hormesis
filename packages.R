@@ -11,6 +11,7 @@ library(rms)
 library(statmod)
 library(simsurv)
 library(survMisc)
+library(testthat)
 
 conflicted::conflict_prefer("filter",    "dplyr")
 conflicted::conflict_prefer("slice",     "dplyr")

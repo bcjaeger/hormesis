@@ -1,0 +1,77 @@
+---
+title: Results from simulation study
+output: pdf_document
+header-includes:
+   - \usepackage{placeins}
+   - \usepackage{amsmath}
+   - \usepackage{booktabs}
+   - \usepackage{caption}
+   - \usepackage{longtable}
+---
+
+
+```{r, echo=FALSE, include=FALSE}
+library(gt)
+library(table.glue)
+library(tidyverse)
+
+rspec <- round_spec() %>% 
+  round_using_magnitude(
+    digits = c(2,1,0),
+    breaks = c(1,100,Inf)
+  )
+
+names(rspec) <- paste0('table.glue.', names(rspec))
+options(rspec)
+
+drake::loadd(tbl_sim)
+```
+
+
+
+Note: all table values are scaled by 100 for convenience
+
+```{r, echo=FALSE, warning=FALSE}
+
+tbl_sim %>% 
+  mutate(
+    exposure_type = recode(
+      exposure_type,
+      '1' = 'type 1',
+      '2' = 'type 2', 
+      '3' = 'type 3',
+      '4' = 'type 4'
+    ),
+    exposure_rate = as.character(exposure_rate),
+    exposure_distribution = recode(
+      exposure_distribution,
+      'exp' = 'exponential',
+      'gam' = 'inverse gaussian',
+      'log' = 'exponentiated gaussian',
+      'uni' = 'uniform',
+      'nor' = 'NOR (?)'
+    ),
+    across(where(is.numeric), ~table_value(.x * 100))
+  ) %>% 
+  gt(rowname_col = 'exposure_type', 
+     groupname_col = 'exposure_distribution') %>% 
+  cols_label(
+    exposure_rate = 'Rate of exposure',
+    AUC_oracle = 'Oracle',
+    AUC_rcs = 'RCS',
+    IPA_oracle = 'Oracle',
+    IPA_rcs = 'RCS',
+    cal_error_oracle = 'Oracle',
+    cal_error_rcs = 'RCS'
+  ) %>% 
+  cols_align(align = 'center') %>% 
+  tab_spanner(label = 'AUC', 
+              columns = c('AUC_oracle','AUC_rcs')) %>% 
+  tab_spanner(label = 'IPA', 
+              columns = c('IPA_oracle','IPA_rcs')) %>% 
+  tab_spanner(label = 'Calibration error', 
+              columns = c('cal_error_oracle','cal_error_rcs')) %>% 
+  as_latex()
+
+```
+

@@ -6,6 +6,6 @@
 ##' @param file
 load_sim <- function(file = "sim/sim_results.rds") {
 
-  NULL
+  read_rds(file)
 
 }
