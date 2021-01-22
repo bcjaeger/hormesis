@@ -28,6 +28,7 @@ drake::loadd(tbl_sim)
 ```
 
 
+Table: Median values from 1000 runs in each cell.
 
 Note: all table values are scaled by 100 for convenience
 

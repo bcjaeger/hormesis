@@ -25,7 +25,7 @@ R.utils::sourceDirectory("R")
                          exposure_distribution = 'exp',
                          exposure_type = 1,
                          exposure_rate = 1,
-                         n_trn = 1000,
+                         n_trn = 5000,
                          n_tst = 10000,
                          n_run = 10) {
   
@@ -45,15 +45,21 @@ R.utils::sourceDirectory("R")
                              exposure_type = exposure_type,
                              exposure_rate = exposure_rate)
     
-    # ggplot(data_sim, aes(x = exposure, y = rate)) +
-    #   geom_line()
+    ggplot(data_sim, aes(x = exposure, y = rate)) +
+      geom_line()
     
     trn_index <- sample(x = n_obs, size = n_trn)
     
     data_trn <- data_sim[trn_index, ]
     data_tst <- data_sim[-trn_index, ]
     
-    fit_rcs <- coxph(Surv(time, status) ~ rcs(exposure),
+    library(rms)
+    dd <- datadist(data_trn)
+    dd$limits$exposure[1:3] <- 0
+    
+    options(datadist = 'dd')
+
+    fit_rcs <- cph(Surv(time, status) ~ rcs(exposure),
                      data = data_trn, 
                      x = TRUE, 
                      y = TRUE)
@@ -62,26 +68,47 @@ R.utils::sourceDirectory("R")
     
     fit_oracle <- switch(
       as.character(exposure_type),
-      '1' = coxph(Surv(time, status) ~ pol(exposure),
+      '1' = cph(Surv(time, status) ~ pol(exposure),
                   data = data_trn, 
                   x = TRUE, 
                   y = TRUE),
-      '2' = coxph(Surv(time, status) ~ exposure,
+      '2' = cph(Surv(time, status) ~ exposure,
                   data = data_trn, 
                   x = TRUE, 
                   y = TRUE),
-      '3' = coxph(Surv(time, status) ~ lsp(exposure, 1),
+      '3' = cph(Surv(time, status) ~ lsp(exposure, 1),
                   data = data_trn, 
                   x = TRUE, 
                   y = TRUE),
-      '4' = coxph(Surv(time, status) ~ lsp(exposure, c(1.1, 1.2, 1.30)),
+      '4' = cph(Surv(time, status) ~ lsp(exposure, c(1.1, 1.2, 1.3)),
                   data = data_trn, 
                   x = TRUE, 
                   y = TRUE)
     )
     
-    # plot(Predict(fit_rcs, exposure))
-    # plot(Predict(fit_oracle, exposure))
+    
+    data_gg <- data_tst
+    
+    
+    data_gg$rate_oracle <- predict(fit_oracle, 
+                                   type = 'lp',
+                                   ref.zero = TRUE,
+                                   newdata = data_tst)
+    
+    data_gg$rate_rcs <- predict(fit_rcs, 
+                                type = 'lp', 
+                                ref.zero = TRUE,
+                                newdata = data_tst)
+    
+    data_gg_long <- data_gg %>% 
+      select(exposure:rate_rcs) %>% 
+      pivot_longer(cols = starts_with('rate')) 
+    
+    ggplot(data_gg_long, aes(x=exposure, y=value, col = name)) + 
+      geom_line()
+    
+    plot(Predict(fit_rcs, exposure))
+    plot(Predict(fit_oracle, exposure))
     
     predicted_risk_times <- quantile(
       data_sim$time,
@@ -153,7 +180,7 @@ R.utils::sourceDirectory("R")
 .rslurm_params <- expand.grid(
   seed = 1:100,
   exposure_distribution = c('exp','gam','log','uni','nor'),
-  exposure_type = c(1,2,3,4),
+  exposure_type = c(2,3,4),
   exposure_rate = c(0,1,2)
 )
 
